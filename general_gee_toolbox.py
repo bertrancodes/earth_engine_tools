@@ -21,7 +21,10 @@ def zonalStats(ic, fc, **params):
     **params :
     |
     |---- reducer : ee.Reducer -> defaults to ee.Reducer.mean()
-    |               The reducer to apply. Also supports strings for classic 
+    |               The reducer to apply. Two additional string options: "classic"
+    |               performs ee.Reducer.mean() and ee.Reducer.stdDev() and "full"
+    |               performs ee.Reducer.mean(), ee.Reducer.stdDev(), ee.Reducer.median(), 
+    |               ee.Reducer.min() and ee.Reducer.max(). Optional 
     |
     |---- scale : int -> defaults to None
     |               A nominal scale in meters of the projection to work in. If None, 
