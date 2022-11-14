@@ -1,4 +1,8 @@
 import ee
+import time
+from yaspin import yaspin
+from yaspin.spinners import Spinners
+from threading import Thread, Lock
 
 
 def zonalStats(ic, fc, **params):
@@ -17,7 +21,7 @@ def zonalStats(ic, fc, **params):
     **params :
     |
     |---- reducer : ee.Reducer -> defaults to ee.Reducer.mean()
-    |               The reducer to apply
+    |               The reducer to apply. Also supports strings for classic 
     |
     |---- scale : int -> defaults to None
     |               A nominal scale in meters of the projection to work in. If None, 
@@ -53,7 +57,7 @@ def zonalStats(ic, fc, **params):
     imgRep = ic.first()
     nonSystemImgProps = ee.Feature(geom = None).copyProperties(imgRep).propertyNames()
 
-    _params = {
+    defaults = {
     'reducer': ee.Reducer.mean(),
     'scale': None,
     'crs': None,
@@ -66,15 +70,36 @@ def zonalStats(ic, fc, **params):
     }
 
     # Replace default parameters for user supplied ones if any
-    for _param in _params:
-        param = params.get(_param, None)
+    for default in defaults:
+        param = params.get(default, None)
         if param is None:
-            params[_param] = _params[_param]
+            params[default] = defaults[default]
     
     if params['imgPropsRename'] is None:
        params['imgPropsRename'] = params['imgProps']
+    
     if params['bandsRename'] is None:
         params['bandsRename'] = params['bands']
+    
+    if params['reducer'] == 'classic':
+        params.update({'reducer': ee.Reducer.mean().combine(ee.Reducer.stdDev(), sharedInputs = True)})
+        band_props = [band + '_mean' for band in iter(params['bandsRename'])]
+        band_props.extend([band + '_stdDev' for band in iter(params['bandsRename'])])
+
+    elif params['reducer'] == 'full':
+        params.update({'reducer': ee.Reducer.mean().combine(ee.Reducer.stdDev(), sharedInputs = True)
+        .combine(ee.Reducer.median(), sharedInputs = True)
+        .combine(ee.Reducer.min(), sharedInputs = True)
+        .combine(ee.Reducer.max(), sharedInputs = True)
+        })
+        band_props = [band + '_mean' for band in iter(params['bandsRename'])]
+        band_props.extend([band + '_stdDev' for band in iter(params['bandsRename'])])
+        band_props.extend([band + '_median' for band in iter(params['bandsRename'])])
+        band_props.extend([band + '_min' for band in iter(params['bandsRename'])])
+        band_props.extend([band + '_max' for band in iter(params['bandsRename'])])
+    
+    else:
+        band_props = params['bandsRename']
 
   # Map the reduceRegions function over the image collection.
     def ic_reducedRegions(img):
@@ -95,6 +120,24 @@ def zonalStats(ic, fc, **params):
         crs = params['crs']
         ).map(lambda feat: feat.set(imgProps))
 
-    results = (ic.map(ic_reducedRegions)).flatten().filter(ee.Filter.notNull(params['bandsRename']))
+    results = (ic.map(ic_reducedRegions)).flatten().filter(ee.Filter.notNull(band_props))
     return results
 
+def inner_showTaskProgress(task, l):
+    with l: 
+        with yaspin(Spinners.point, text=f"Exporting {task.status().get('description')} --> Status: {task.status().get('state')}") as sp:
+            while task.status().get('state') not in ['COMPLETED','SUCCEEDED', 'CANCELLED', 'FAILED']:
+                time.sleep(0.1)
+                #sys.stdout.flush()
+            if task.status().get('state') in ['SUCCEEDED', 'COMPLETED']:
+                sp.ok("✅ ")
+                return
+            else:
+                sp.fail("💥 ")
+                return
+
+def showTaskProgress(task):
+    # This needs some work in order to print multiple progress spinners in different bars
+    l = Lock()
+    thread = Thread(target = inner_showTaskProgress, args = (task, l))
+    thread.start()
