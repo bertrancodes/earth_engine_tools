@@ -1,6 +1,6 @@
 import ee
 
-def add_NDVI(image):
+def add_NDVI(image: ee.Image) -> ee.Image:
     """Adds a Normalized Difference Vegetation Index band to Sentinel-2 images
 
     Parameters
@@ -12,7 +12,7 @@ def add_NDVI(image):
     ndvi = image.normalizedDifference(['B8', 'B4']).rename('ndvi')
     return image.addBands([ndvi])
 
-def add_DVI(image):
+def add_DVI(image: ee.Image) -> ee.Image:
     """Adds a Difference Vegetation Index band to Sentinel-2 images
 
     Parameters
@@ -27,7 +27,46 @@ def add_DVI(image):
     dvi = dvi.divide(1e4)
     return image.addBands([dvi])
 
-def get_cloudless_col(aoi, start_date, end_date, **params):
+def add_NDWI(image: ee.Image) -> ee.Image:
+    """Adds a Normalized Difference Water Index band to Sentinel-2 images
+
+    Parameters
+    -----------
+    image : ee.Image
+         A Sentinel-2 SR product
+
+    """
+    ndwi = image.normalizedDifference(['B8', 'B11']).rename('ndwi')
+    return image.addBands([ndwi])
+
+def add_DWI(image: ee.Image) -> ee.Image:
+    """Adds a Difference Water Index band to Sentinel-2 images
+
+    Parameters
+    -----------
+    image : ee.Image
+         A Sentinel-2 SR product
+
+    """
+    nir = image.select('B8')
+    swir = image.select('B11')
+    dwi = nir.subtract(swir).rename('dwi')
+    dwi = dwi.divide(1e4)
+    return image.addBands([dwi])
+
+def add_GNDVI(image: ee.Image) -> ee.Image:
+    """Adds a Green Normalized Difference Water Index band to Sentinel-2 images
+
+    Parameters
+    -----------
+    image : ee.Image
+         A Sentinel-2 SR product
+
+    """
+    gndvi = image.normalizedDifference(['B8', 'B3']).rename('gndvi')
+    return image.addBands([gndvi])
+
+def get_cloudless_col(aoi: ee.FeatureCollection, start_date: str, end_date: str, **params) -> ee.ImageCollection:
 
     """ Returns a cloud free Sentinel-2 ImageCollection
 

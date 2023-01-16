@@ -1,11 +1,12 @@
 import ee
-import time
-from yaspin import yaspin
-from yaspin.spinners import Spinners
-from threading import Thread, Lock
+from time import sleep
+
+from rich.live import Live
+from rich.table import Table
+from rich.progress import Progress, TimeElapsedColumn, TextColumn, SpinnerColumn
 
 
-def zonalStats(ic, fc, **params):
+def zonalStats(ic: ee.ImageCollection, fc: ee.FeatureCollection, **params) -> ee.FeatureCollection:
     """ 
     Python traslation of user "swinswm" zonalStats function for the GEE JavaScript API.
     Returns zonal statistics for the selected ImageCollection over the FeatureCollection
@@ -126,21 +127,43 @@ def zonalStats(ic, fc, **params):
     results = (ic.map(ic_reducedRegions)).flatten().filter(ee.Filter.notNull(band_props))
     return results
 
-def inner_showTaskProgress(task, l):
-    with l: 
-        with yaspin(Spinners.point, text=f"Exporting {task.status().get('description')} --> Status: {task.status().get('state')}") as sp:
-            while task.status().get('state') not in ['COMPLETED','SUCCEEDED', 'CANCELLED', 'FAILED']:
-                time.sleep(0.1)
-                #sys.stdout.flush()
-            if task.status().get('state') in ['SUCCEEDED', 'COMPLETED']:
-                sp.ok("✅ ")
-                return
-            else:
-                sp.fail("💥 ")
-                return
 
-def showTaskProgress(task):
-    # This needs some work in order to print multiple progress spinners in different bars
-    l = Lock()
-    thread = Thread(target = inner_showTaskProgress, args = (task, l))
-    thread.start()
+
+def fancy_status(status, name):
+    if status == 'COMPLETED':
+        fancy_status = '✅ ' + '[green]' + name+': ' + status
+        return fancy_status
+    elif status in ['CANCELLED', 'FAILED']:
+        fancy_status = '❌ ' + '[red]' + name+': ' + status
+        return fancy_status
+    else:
+        fancy_status = '⏳ ' + '[cyan]' + name +': '+ status + '...'
+        return fancy_status
+
+
+def showTaskManager(tasks):
+
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+    )
+    
+    task_names = []
+    
+    with progress as p:
+        # Initialize tasks
+        for task in tasks:
+            task_names.append(task.status().get('description'))
+            p.add_task(f"", start=True)
+        while not set([task.status().get('state') for task in tasks]).issubset(['COMPLETED', 'SUCCEEDED', 'CANCELLED', 'FAILED']):
+            for i, taskID in enumerate(p.task_ids):
+                status = [task.status().get('state') for task in tasks][i]
+                name = task_names[i]
+
+                #status = task.status().get('state')
+                p.update(taskID, description = '{:<3} {:<35}'.format(*fancy_status(status, name).split(' ',1)))
+                if status in ['COMPLETED', 'CANCELLED']:
+                    p.advance(taskID, advance=100)
+            sleep(10)
+    return
