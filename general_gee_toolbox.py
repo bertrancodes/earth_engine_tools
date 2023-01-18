@@ -1,8 +1,6 @@
 import ee
 from time import sleep
 
-from rich.live import Live
-from rich.table import Table
 from rich.progress import Progress, TimeElapsedColumn, TextColumn, SpinnerColumn
 
 
@@ -141,7 +139,7 @@ def fancy_status(status, name):
         return fancy_status
 
 
-def showTaskManager(tasks):
+def showTaskManager(*tasks):
 
     progress = Progress(
         SpinnerColumn(),
@@ -165,5 +163,5 @@ def showTaskManager(tasks):
                 p.update(taskID, description = '{:<3} {:<35}'.format(*fancy_status(status, name).split(' ',1)))
                 if status in ['COMPLETED', 'CANCELLED']:
                     p.advance(taskID, advance=100)
-            sleep(10)
+            sleep(1)
     return
